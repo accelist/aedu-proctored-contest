@@ -40,7 +40,10 @@ function createWindow(): void {
     });
 }
 
-function terminateForCheating() {
+async function terminateForCheating() {
+    // Dynamically import fetch module
+    const fetch = await import('node-fetch');
+
     // Log termination attempt
     try {
         // const response = await fetch.default('YOUR_API_ENDPOINT', {
