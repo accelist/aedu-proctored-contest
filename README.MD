@@ -17,7 +17,7 @@ Make sure you have Node.js and npm installed on your system.
 1. Install dependencies:
 
 ```
-npm install
+npm ci
 ```
 
 2. Compile the TypeScript files to JavaScript:
