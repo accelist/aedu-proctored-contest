@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, Menu } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron';
 
 let mainWindow: BrowserWindow | null;
 
