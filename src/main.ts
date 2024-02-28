@@ -1,4 +1,5 @@
-import { app, BrowserWindow, Menu } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, IpcMainEvent } from "electron";
+const path = require("node:path");
 
 let mainWindow: BrowserWindow | null;
 
@@ -10,90 +11,145 @@ Menu.setApplicationMenu(null);
 // username / ID will be used for validating contest entry and logging
 // after that initial page, browser should be redirected to the actual contest page
 const contestUrl = `https://www.hackerrank.com/accelist-test-contest`;
+const urlAPI = `http://localhost:5231`;
+
+let name = "";
+let email = "";
+let alreadyLogIn = false;
 
 function createWindow(): void {
-    mainWindow = new BrowserWindow({
-        fullscreen: true,
-        webPreferences: {
-            nodeIntegration: true
-        }
-    });
+  let pathPreload = path.join(__dirname, "preload.js");
+  mainWindow = new BrowserWindow({
+    fullscreen: true,
+    webPreferences: {
+      nodeIntegration: true,
+      preload: pathPreload,
+    },
+  });
 
-    mainWindow.loadURL(contestUrl);
+  mainWindow.loadFile("./pages/login.html");
 
-    mainWindow.on('leave-full-screen', () => {
-        terminateForCheating();
-    });
+  mainWindow.on("leave-full-screen", () => {
+    terminateForCheating("Leave full screen attempted");
+  });
 
-    mainWindow.on('blur', () => {
-        terminateForCheating();
-    });
+  mainWindow.on("blur", () => {
+    terminateForCheating("Blur attempted");
+  });
 
-    mainWindow.webContents.on('did-navigate', (event, url) => {
-        // Log URL to a web API
-        logUrlToApi(url);
-    });
-
-    // Disable developer tools
-    mainWindow.webContents.on('devtools-opened', () => {
-        mainWindow?.webContents.closeDevTools();
-    });
-}
-
-async function terminateForCheating() {
-    // Dynamically import fetch module
-    const fetch = await import('node-fetch');
-
-    // Log termination attempt
-    try {
-        // const response = await fetch.default('YOUR_API_ENDPOINT', {
-        //     method: 'POST',
-        //     headers: {
-        //         'Content-Type': 'application/json'
-        //     },
-        //     body: JSON.stringify({ url })
-        // });
-
-        // if (!response.ok) {
-        //     throw new Error('Failed to log URL');
-        // }
-        console.log('TERMINATED');
-    } catch (error) {
-        console.error('Error logging termination:', error);
-    }
-
-    app.quit();
-}
-
-async function logUrlToApi(url: string): Promise<void> {
-    // Dynamically import fetch module
-    const fetch = await import('node-fetch');
-
+  mainWindow.webContents.on("did-navigate", (event, url) => {
     // Log URL to a web API
-    try {
-        // const response = await fetch.default('YOUR_API_ENDPOINT', {
-        //     method: 'POST',
-        //     headers: {
-        //         'Content-Type': 'application/json'
-        //     },
-        //     body: JSON.stringify({ url })
-        // });
+    logUrlToApi(url);
+  });
 
-        // if (!response.ok) {
-        //     throw new Error('Failed to log URL');
-        // }
-        console.log(url);
-    } catch (error) {
-        console.error('Error logging URL:', error);
-    }
+  // Disable developer tools
+  mainWindow.webContents.on("devtools-opened", () => {
+    mainWindow?.webContents.closeDevTools();
+  });
 }
 
 app.whenReady().then(() => {
-    createWindow();
+  createWindow();
 });
 
-app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+async function terminateForCheating(event: string) {
+  // Dynamically import fetch module
+  if(!alreadyLogIn) return;
+  const fetch = await import("node-fetch");
+
+  let data = {
+    email: email,
+    name: name,
+    log: event,
+  };
+  // Log termination attempt
+  try {
+    const response = await fetch.default(`${urlAPI}/api/competition/log`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to log URL");
     }
+  } catch (error) {
+    console.error("Error logging termination:", error);
+  }
+
+  app.quit();
+}
+
+async function logUrlToApi(url: string): Promise<void> {
+  if(!alreadyLogIn) return;
+  // Dynamically import fetch module
+  const fetch = await import("node-fetch");
+  let data = {
+    email: email,
+    name: name,
+    log: `Navigated to ${url}`,
+  };
+  // Log URL to a web API
+  try {
+    const response = await fetch.default(`${urlAPI}/api/competition/log`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+  } catch (error) {
+    console.error("Error logging URL:", error);
+  }
+}
+
+async function initiateQuiz(): Promise<void> {
+  // Dynamically import fetch module
+  const fetch = await import("node-fetch");
+
+  let data = {
+    email: email,
+    name: name,
+    log: "Initialize Quiz",
+  };
+
+  // Log URL to a web API
+  try {
+    const response = await fetch.default(`${urlAPI}/api/competition/log`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    console.log(response);
+
+    if (!response.ok) {
+      throw new Error("Failed to log URL");
+    }
+  } catch (error) {
+    console.error("Error logging initialize URL:", error);
+  }
+}
+
+// Listen for the form submission event from the renderer process
+ipcMain.on("set-participant", async (event, participantJson) => {
+  // Handle the form data in the main process
+  console.log("Received form data in main process:", participantJson);
+  let participant = JSON.parse(participantJson);
+  // You can perform any additional logic or send a response back to the renderer process
+  email = participant.email;
+  name = participant.name;
+  alreadyLogIn = true;
+  await initiateQuiz();
+  mainWindow?.loadURL(contestUrl);
 });
